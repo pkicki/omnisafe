@@ -135,15 +135,15 @@ class Logger:  # pylint: disable=too-many-instance-attributes
             self._tensorboard_writer = SummaryWriter(log_dir=os.path.join(self._log_dir, 'tb'))
 
         if self._use_wandb and self._maste_proc:  # pragma: no cover
-            project: str = self._config.logger_cfgs.get('wandb_project', 'omnisafe')
-            name: str = f'{exp_name}-{relpath}'
-            group: str = self._config.logger_cfgs.get('wandb_group', f"{exp_name}-{config_hash.hexdigest()}")
-            print('project', project, 'name', name)
-
             temp_config = config.copy()
             temp_config.pop('seed', None)
             temp_config["exp_increment_cfgs"].pop('seed', None)
             config_hash = sha1(repr(sorted(temp_config.items())).encode('utf-8'))
+
+            project: str = self._config.logger_cfgs.get('wandb_project', 'omnisafe')
+            name: str = f'{exp_name}-{relpath}'
+            group: str = self._config.logger_cfgs.get('wandb_group', f"{exp_name}-{config_hash.hexdigest()}")
+            print('project:', project, '  group:', group, '  name:', name)
 
             wandb.init(project=project, name=relpath, dir=self._log_dir, config=config, group=group)
             if config is not None:
