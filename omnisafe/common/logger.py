@@ -137,6 +137,7 @@ class Logger:  # pylint: disable=too-many-instance-attributes
         if self._use_wandb and self._maste_proc:  # pragma: no cover
             project: str = self._config.logger_cfgs.get('wandb_project', 'omnisafe')
             name: str = f'{exp_name}-{relpath}'
+            group: str = self._config.logger_cfgs.get('wandb_group', f"{exp_name}-{config_hash.hexdigest()}")
             print('project', project, 'name', name)
 
             temp_config = config.copy()
@@ -144,7 +145,7 @@ class Logger:  # pylint: disable=too-many-instance-attributes
             temp_config["exp_increment_cfgs"].pop('seed', None)
             config_hash = sha1(repr(sorted(temp_config.items())).encode('utf-8'))
 
-            wandb.init(project=project, name=relpath, dir=self._log_dir, config=config, group=f"{exp_name}-{config_hash.hexdigest()}")
+            wandb.init(project=project, name=relpath, dir=self._log_dir, config=config, group=group)
             if config is not None:
                 wandb.config.update(config)
             if models is not None:
