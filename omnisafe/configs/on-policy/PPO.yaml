@@ -105,7 +105,7 @@ defaults:
     # actor network configurations
     actor:
       # hidden layer sizes
-      hidden_sizes: [64, 64]
+      hidden_sizes: [128, 128]
       # activation function
       activation: tanh
       # out_activation: tanh
@@ -113,7 +113,7 @@ defaults:
       lr: 0.0003
     critic:
       # hidden layer sizes
-      hidden_sizes: [64, 64]
+      hidden_sizes: [128, 128]
       # activation function
       activation: tanh
       # learning rate

@@ -41,7 +41,10 @@ class OnPolicyAdapter(OnlineAdapter):
     """
 
     _ep_ret: torch.Tensor
+    _ep_J: torch.Tensor
     _ep_cost: torch.Tensor
+    _ep_max_cost: torch.Tensor
+    _ep_success: torch.Tensor
     _ep_len: torch.Tensor
 
     def __init__(  # pylint: disable=too-many-arguments
@@ -103,15 +106,20 @@ class OnPolicyAdapter(OnlineAdapter):
 
             obs = next_obs
             epoch_end = step >= steps_per_epoch - 1
+            if epoch_end:
+                num_dones = int(terminated.contiguous().sum())
+                if self._env.num_envs - num_dones:
+                    logger.log(
+                        f'\nWarning: trajectory cut off when rollout by epoch\
+                            in {self._env.num_envs - num_dones} of {self._env.num_envs} environments.',
+                    )
+
             for idx, (done, time_out) in enumerate(zip(terminated, truncated)):
                 if epoch_end or done or time_out:
                     last_value_r = torch.zeros(1)
                     last_value_c = torch.zeros(1)
                     if not done:
                         if epoch_end:
-                            logger.log(
-                                f'Warning: trajectory cut off when rollout by epoch at {self._ep_len[idx]} steps.',
-                            )
                             _, last_value_r, last_value_c, _ = agent.step(obs[idx])
                         if time_out:
                             _, last_value_r, last_value_c, _ = agent.step(
@@ -125,7 +133,10 @@ class OnPolicyAdapter(OnlineAdapter):
                         self._reset_log(idx)
 
                         self._ep_ret[idx] = 0.0
+                        self._ep_J[idx] = 0.0
                         self._ep_cost[idx] = 0.0
+                        self._ep_max_cost[idx] = 0.0
+                        self._ep_success[idx] = 0.0
                         self._ep_len[idx] = 0.0
 
                     buffer.finish_path(last_value_r, last_value_c, idx)
@@ -148,8 +159,15 @@ class OnPolicyAdapter(OnlineAdapter):
             info (dict[str, Any]): Some information logged by the environment.
         """
         self._ep_ret += info.get('original_reward', reward).cpu()
+        self._ep_J = info.get('original_reward', reward).cpu() + 0.99 * self._ep_J
         self._ep_cost += info.get('original_cost', cost).cpu()
         self._ep_len += 1
+        
+        if info.get('original_cost', cost).cpu() > self._ep_max_cost:
+            self._ep_max_cost = info.get('original_cost', cost).cpu()
+            
+        if 'success' in info.keys():
+            self._ep_success += torch.tensor(info['success'], dtype=torch.float32)
 
     def _log_metrics(self, logger: Logger, idx: int) -> None:
         """Log metrics, including ``EpRet``, ``EpCost``, ``EpLen``.
@@ -164,6 +182,9 @@ class OnPolicyAdapter(OnlineAdapter):
             {
                 'Metrics/EpRet': self._ep_ret[idx],
                 'Metrics/EpCost': self._ep_cost[idx],
+                'Metrics/EpMaxCost': self._ep_max_cost[idx],
+                'Metrics/Success': self._ep_success[idx],
+                'Metrics/EpJ': self._ep_J[idx],
                 'Metrics/EpLen': self._ep_len[idx],
             },
         )
@@ -177,9 +198,15 @@ class OnPolicyAdapter(OnlineAdapter):
         """
         if idx is None:
             self._ep_ret = torch.zeros(self._env.num_envs)
+            self._ep_J = torch.zeros(self._env.num_envs)
             self._ep_cost = torch.zeros(self._env.num_envs)
+            self._ep_max_cost = torch.zeros(self._env.num_envs)
+            self._ep_success = torch.zeros(self._env.num_envs)
             self._ep_len = torch.zeros(self._env.num_envs)
         else:
             self._ep_ret[idx] = 0.0
+            self._ep_J[idx] = 0.0
             self._ep_cost[idx] = 0.0
+            self._ep_max_cost[idx] = 0.0
+            self._ep_success[idx] = 0.0
             self._ep_len[idx] = 0.0

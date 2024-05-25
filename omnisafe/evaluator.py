@@ -338,7 +338,7 @@ class Evaluator:  # pylint: disable=too-many-instance-attributes
         self,
         num_episodes: int = 10,
         cost_criteria: float = 1.0,
-    ) -> tuple[list[float], list[float]]:
+    ) -> tuple[list[float], list[float], list[float]]:
         """Evaluate the agent for num_episodes episodes.
 
         Args:
@@ -357,6 +357,7 @@ class Evaluator:  # pylint: disable=too-many-instance-attributes
             )
 
         episode_rewards: list[float] = []
+        episode_J = []
         episode_costs: list[float] = []
         episode_lengths: list[float] = []
 
@@ -364,6 +365,7 @@ class Evaluator:  # pylint: disable=too-many-instance-attributes
             obs, _ = self._env.reset()
             self._safety_obs = torch.ones(1)
             ep_ret, ep_cost, length = 0.0, 0.0, 0.0
+            ep_J = 0.0
 
             done = False
             while not done:
@@ -372,8 +374,13 @@ class Evaluator:  # pylint: disable=too-many-instance-attributes
                 with torch.no_grad():
                     if self._actor is not None:
                         act = self._actor.predict(
-                            obs,
+                            obs.reshape(
+                                -1,
+                                obs.shape[-1],  # to make sure the shape is (1, obs_dim)
+                            ),
                             deterministic=True,
+                        ).reshape(
+                            -1,  # to make sure the shape is (act_dim,)
                         )
                     elif self._planner is not None:
                         act = self._planner.output_action(
@@ -391,6 +398,7 @@ class Evaluator:  # pylint: disable=too-many-instance-attributes
                     self._safety_obs /= self._cfgs.algo_cfgs.saute_gamma
 
                 ep_ret += rew.item()
+                ep_J = rew.item() + 0.99 * ep_J
                 ep_cost += (cost_criteria**length) * cost.item()
                 if (
                     'EarlyTerminated' in self._cfgs['algo']
@@ -402,24 +410,29 @@ class Evaluator:  # pylint: disable=too-many-instance-attributes
                 done = bool(terminated or truncated)
 
             episode_rewards.append(ep_ret)
+            episode_J.append(ep_J)
             episode_costs.append(ep_cost)
             episode_lengths.append(length)
 
-            print(f'Episode {episode+1} results:')
-            print(f'Episode reward: {ep_ret}')
-            print(f'Episode cost: {ep_cost}')
-            print(f'Episode length: {length}')
+        #     print(f'Episode {episode} results:')
+        #     print(f'Episode reward: {ep_ret}')
+        #     print(f'Episode J: {ep_J}')
+        #     print(f'Episode cost: {ep_cost}')
+        #     print(f'Episode length: {length}')
 
-        print(self._dividing_line)
-        print('Evaluation results:')
-        print(f'Average episode reward: {np.mean(a=episode_rewards)}')
-        print(f'Average episode cost: {np.mean(a=episode_costs)}')
-        print(f'Average episode length: {np.mean(a=episode_lengths)}')
+        # print(self._dividing_line)
+        # print('Evaluation results:')
+        # print(f'Average episode reward: {np.mean(a=episode_rewards)}')
+        # print(f'Average episode J: {np.mean(a=episode_J)}')
+        # print(f'Average episode cost: {np.mean(a=episode_costs)}')
+        # print(f'Average episode length: {np.mean(a=episode_lengths)}')
 
         self._env.close()
         return (
             episode_rewards,
+            episode_J,
             episode_costs,
+            episode_lengths
         )
 
     @property
