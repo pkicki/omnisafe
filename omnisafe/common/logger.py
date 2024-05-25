@@ -22,6 +22,7 @@ import os
 import time
 from collections import deque
 from typing import Any, TextIO
+from hashlib import sha1
 
 import numpy as np
 import torch
@@ -137,7 +138,13 @@ class Logger:  # pylint: disable=too-many-instance-attributes
             project: str = self._config.logger_cfgs.get('wandb_project', 'omnisafe')
             name: str = f'{exp_name}-{relpath}'
             print('project', project, 'name', name)
-            wandb.init(project=project, name=name, dir=self._log_dir, config=config)
+
+            temp_config = config.copy()
+            temp_config.pop('seed', None)
+            temp_config["exp_increment_cfgs"].pop('seed', None)
+            config_hash = sha1(repr(sorted(temp_config.items())).encode('utf-8'))
+
+            wandb.init(project=project, name=relpath, dir=self._log_dir, config=config, group=f"{exp_name}-{config_hash.hexdigest()}")
             if config is not None:
                 wandb.config.update(config)
             if models is not None:
@@ -382,3 +389,6 @@ class Logger:  # pylint: disable=too-many-instance-attributes
         """Close the logger."""
         if self._maste_proc:
             self._output_file.close()
+
+        if self._use_wandb:
+            wandb.finish()
