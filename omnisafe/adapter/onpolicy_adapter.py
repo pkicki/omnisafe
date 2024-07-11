@@ -162,7 +162,7 @@ class OnPolicyAdapter(OnlineAdapter):
         self._ep_J = info.get('original_reward', reward).cpu() + 0.99 * self._ep_J
         self._ep_cost += info.get('original_cost', cost).cpu()
         self._ep_len += 1
-        
+
         if info.get('original_cost', cost).cpu() > self._ep_max_cost:
             self._ep_max_cost = info.get('original_cost', cost).cpu()
             
