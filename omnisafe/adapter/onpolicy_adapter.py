@@ -159,7 +159,7 @@ class OnPolicyAdapter(OnlineAdapter):
             info (dict[str, Any]): Some information logged by the environment.
         """
         self._ep_ret += info.get('original_reward', reward).cpu()
-        self._ep_J = info.get('original_reward', reward).cpu() + 0.99 * self._ep_J
+        self._ep_J += 0.99 ** self._ep_len * info.get('original_reward', reward).cpu()
         self._ep_cost += info.get('original_cost', cost).cpu()
         self._ep_len += 1
 
